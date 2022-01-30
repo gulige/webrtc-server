@@ -9,7 +9,7 @@
 
 start(_StartType, _StartArgs) ->
     syn:start(),
-    stun_listener:add_listener(3478, udp, [
+    stun_listener:add_listener({0, 0, 0, 0}, 3478, udp, [
         {use_turn, true},
         {turn_ip, resolve_ip()},
         {certfile, config(certfile)},

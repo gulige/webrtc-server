@@ -11,7 +11,7 @@
  {<<"syn">>,{pkg,<<"syn">>,<<"3.2.1">>},1},
  {<<"webrtc_server">>,
   {git,"https://github.com/kevsmith/webrtc-server",
-       {ref,"743285e1b96ebedc1cda2da398ef7ce6c2d353bb"}},
+       {ref,"1feb6ecc6c6c3857949d95ad35a9417a7c60a1cd"}},
   0}]}.
 [
 {pkg_hash,[

@@ -131,6 +131,13 @@ safe_auth(Username) ->
 
 join_room(Room, Username, PeerId) ->
     OtherMembers = syn:members(Room, with_meta),
+    OtherMembers =
+        case catch syn:members(Room, with_meta) of
+            L when is_list(L) -> L;
+            _ ->
+                syn:add_node_to_scopes([binary_to_atom(Room)]),
+                []
+        end,
     syn:register(PeerId, self(), {Username, PeerId, Room}),
     syn:join(Room, self(), {Username, PeerId}),
 

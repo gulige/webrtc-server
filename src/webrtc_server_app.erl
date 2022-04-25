@@ -9,10 +9,11 @@
 
 start(_StartType, _StartArgs) ->
     syn:start(),
+    PrivDir = code:priv_dir(webrtc_server),
     stun_listener:add_listener({0, 0, 0, 0}, 3478, udp, [
         {use_turn, true},
         {turn_ip, resolve_ip()},
-        {certfile, config(certfile)},
+        {certfile, PrivDir ++ binary_to_list(config(certfile))},
         {auth_type, user},
         {auth_realm, config(hostname)},
         {auth_fun, get_stun_auth_fun()}

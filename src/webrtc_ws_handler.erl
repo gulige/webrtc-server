@@ -150,7 +150,7 @@ run_callback(Type, Room, Username, CurrentUsers) ->
             try
                 Module:Function(Room, Username, CurrentUsers)
             catch
-                ErrorType:Error ->
+                ErrorType:Error:StackTrace ->
                     lager:error(
                         "~nError running ~p ~p ~p:~s",
                         [
@@ -158,7 +158,7 @@ run_callback(Type, Room, Username, CurrentUsers) ->
                             Room,
                             Username,
                             lager:pr_stacktrace(
-                                erlang:get_stacktrace(),
+                                StackTrace,
                                 {ErrorType, Error}
                             )
                         ]

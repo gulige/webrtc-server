@@ -130,7 +130,6 @@ safe_auth(Username) ->
     end.
 
 join_room(Room, Username, PeerId) ->
-    OtherMembers = syn:members(Room, with_meta),
     OtherMembers =
         case catch syn:members(Room, with_meta) of
             L when is_list(L) -> L;

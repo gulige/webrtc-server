@@ -9,6 +9,7 @@
 
 start(_StartType, _StartArgs) ->
     syn:start(),
+    syn:add_node_to_scopes([config(syn_scope)]),
     PrivDir = code:priv_dir(webrtc_server),
     stun_listener:add_listener({0, 0, 0, 0}, 3478, udp, [
         {use_turn, true},

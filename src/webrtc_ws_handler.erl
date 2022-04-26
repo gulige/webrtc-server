@@ -18,12 +18,12 @@ websocket_init(State) ->
 
     %% give the ws some time to authenticate before disconnecting it
     timer:send_after(Time, check_auth),
-    {ok, State}.
+    {[], State}.
 
 %% not all ws clients can send a ping frame (namely, browsers can't)
 %% so we handle a ping text frame.
 websocket_handle({text, <<"ping">>}, State) ->
-    {reply, {text, <<"pong">>}, State};
+    {[{text, <<"pong">>}], State};
 %% Before authentication, just expect the socket to send user/pass
 websocket_handle({text, Text}, State = #{authenticated := false, room := Room}) ->
     case authenticate(Text) of
@@ -39,10 +39,10 @@ websocket_handle({text, Text}, State = #{authenticated := false, room := Room}) 
                 peer_id => PeerId
             },
 
-            {reply, webrtc_utils:text_event(authenticated, #{peer_id => PeerId}), State2};
+            {[webrtc_utils:text_event(authenticated, #{peer_id => PeerId})], State2};
         Reason ->
             lager:debug("bad authentication: ~p ~p", [Reason, Text]),
-            {reply, webrtc_utils:text_event(unauthorized), State}
+            {[webrtc_utils:text_event(unauthorized)], State}
     end;
 %% After authentication, any message should be targeted to a specific peer
 websocket_handle(
@@ -58,19 +58,19 @@ websocket_handle(
     case webrtc_utils:json_decode(Text) of
         #{to := OtherPeer} = Message ->
             %% crash if room doesn't match
-            {Pid, {_Username, _PeerId, Room}} = syn:find_by_key(OtherPeer, with_meta),
+            {Pid, {_Username, _PeerId, Room}} = syn:lookup(scope(), OtherPeer),
 
             %% extend message with this peer id before sending
             Message2 = Message#{from => ThisPeer},
             Pid ! {text, webrtc_utils:json_encode(Message2)},
 
-            {ok, State};
+            {[], State};
         _ ->
-            {reply, webrtc_utils:text_event(invalid_message), State}
+            {[webrtc_utils:text_event(invalid_message)], State}
     end;
 websocket_handle(Frame, State) ->
     lager:warning("Received non text frame ~p~p", [Frame, State]),
-    {ok, State}.
+    {[], State}.
 
 %% If user/password not sent before ws_auth_delay, disconnect
 websocket_info(check_auth, State = #{authenticated := false}) ->
@@ -78,21 +78,22 @@ websocket_info(check_auth, State = #{authenticated := false}) ->
     {stop, State};
 websocket_info(check_auth, State) ->
     %% already authenticated, do nothing
-    {ok, State};
+    {[], State};
 %% incoming text frame, send to the client socket
 websocket_info({text, Text}, State = #{authenticated := true}) ->
     lager:debug("Sending to client ~p", [Text]),
-    {reply, {text, Text}, State};
+    {[{text, Text}], State};
 websocket_info(Info, State) ->
     lager:warning("Received unexpected info ~p~p", [Info, State]),
-    {ok, State}.
+    {[], State}.
 
 terminate(_Reason, _Req, #{room := Room, username := Username, peer_id := PeerId}) ->
     OtherUsers = [
         Name
-     || {Pid, {Name, _PeerId}} <- syn:members(Room, with_meta), Pid /= self()
+     || {Pid, {Name, _PeerId}} <- syn:members(scope(), Room), Pid /= self()
     ],
     syn:publish(
+        scope(),
         Room,
         webrtc_utils:text_event(left, #{
             username => Username,
@@ -130,15 +131,9 @@ safe_auth(Username) ->
     end.
 
 join_room(Room, Username, PeerId) ->
-    OtherMembers =
-        case catch syn:members(Room, with_meta) of
-            L when is_list(L) -> L;
-            _ ->
-                syn:add_node_to_scopes([binary_to_atom(Room)]),
-                []
-        end,
-    syn:register(PeerId, self(), {Username, PeerId, Room}),
-    syn:join(Room, self(), {Username, PeerId}),
+    OtherMembers = syn:members(scope(), Room),
+    syn:register(scope(), PeerId, self(), {Username, PeerId, Room}),
+    syn:join(scope(), Room, self(), {Username, PeerId}),
 
     %% broadcast peer joined to the rest of the peers in the room
     Message = webrtc_utils:text_event(joined, #{
@@ -176,3 +171,13 @@ run_callback(Type, Room, Username, CurrentUsers) ->
 
 peer_id() ->
     base64:encode(crypto:strong_rand_bytes(10)).
+
+scope() ->
+    case get(syn_scope) of
+        undefined ->
+            {ok, Value} = application:get_env(webrtc_server, syn_scope),
+            put(syn_scope, Value),
+            Value;
+        Value -> Value
+    end.
+
